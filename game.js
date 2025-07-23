@@ -1,108 +1,128 @@
+class SnakeGame extends Phaser.Scene {
+  constructor() {
+    super({ key: 'SnakeGame' });
+    this.gridSize = 16;  // Size of each cell
+  }
+
+  preload() {}
+
+  create() {
+    this.snake = [{ x: 8, y: 8 }]; // initial snake position (grid coords)
+    this.direction = 'RIGHT';
+    this.nextDirection = 'RIGHT'; // buffer next direction for smooth control
+    this.speed = 150; // movement speed in ms
+    this.timer = 0;
+    this.score = 0;
+
+    this.food = this.placeFood();
+
+    // Display score text
+    this.scoreText = this.add.text(10, 10, 'Score: 0', { fontSize: '20px', fill: '#fff' });
+
+    // Keyboard controls
+    this.cursors = this.input.keyboard.createCursorKeys();
+
+    this.gameOver = false;
+  }
+
+  placeFood() {
+    let foodX, foodY;
+    do {
+      foodX = Phaser.Math.Between(0, 39);
+      foodY = Phaser.Math.Between(0, 29);
+    } while (this.snake.some(segment => segment.x === foodX && segment.y === foodY));
+
+    return { x: foodX, y: foodY };
+  }
+
+  update(time) {
+    if (this.gameOver) return;
+
+    // Check input and update direction
+    if (this.cursors.left.isDown && this.direction !== 'RIGHT') this.nextDirection = 'LEFT';
+    else if (this.cursors.right.isDown && this.direction !== 'LEFT') this.nextDirection = 'RIGHT';
+    else if (this.cursors.up.isDown && this.direction !== 'DOWN') this.nextDirection = 'UP';
+    else if (this.cursors.down.isDown && this.direction !== 'UP') this.nextDirection = 'DOWN';
+
+    if (time > this.timer) {
+      this.timer = time + this.speed;
+      this.moveSnake();
+    }
+
+    this.draw();
+  }
+
+  moveSnake() {
+    this.direction = this.nextDirection;
+
+    const head = { ...this.snake[0] };
+
+    switch (this.direction) {
+      case 'LEFT': head.x -= 1; break;
+      case 'RIGHT': head.x += 1; break;
+      case 'UP': head.y -= 1; break;
+      case 'DOWN': head.y += 1; break;
+    }
+
+    // Check collision with walls
+    if (head.x < 0 || head.x >= 40 || head.y < 0 || head.y >= 30) {
+      this.endGame();
+      return;
+    }
+
+    // Check collision with self
+    if (this.snake.some(segment => segment.x === head.x && segment.y === head.y)) {
+      this.endGame();
+      return;
+    }
+
+    // Add new head to snake
+    this.snake.unshift(head);
+
+    // Check if food eaten
+    if (head.x === this.food.x && head.y === this.food.y) {
+      this.score += 10;
+      this.scoreText.setText('Score: ' + this.score);
+      this.food = this.placeFood();
+      // Snake grows: do not remove tail
+    } else {
+      // Remove tail segment if no food eaten (snake moves forward)
+      this.snake.pop();
+    }
+  }
+
+  draw() {
+    this.clearGraphics();
+
+    this.graphics = this.graphics || this.add.graphics();
+
+    // Draw food
+    this.graphics.fillStyle(0xff0000, 1);
+    this.graphics.fillRect(this.food.x * this.gridSize, this.food.y * this.gridSize, this.gridSize, this.gridSize);
+
+    // Draw snake
+    this.graphics.fillStyle(0x00ff00, 1);
+    this.snake.forEach(segment => {
+      this.graphics.fillRect(segment.x * this.gridSize, segment.y * this.gridSize, this.gridSize, this.gridSize);
+    });
+  }
+
+  clearGraphics() {
+    if (this.graphics) this.graphics.clear();
+  }
+
+  endGame() {
+    this.gameOver = true;
+    this.add.text(200, 200, 'Game Over', { fontSize: '40px', fill: '#fff' });
+  }
+}
+
 const config = {
   type: Phaser.AUTO,
-  width: 400,
-  height: 400,
-  backgroundColor: '#1d1d1d',
-  physics: {
-      default: 'arcade',
-      arcade: {
-          debug: false
-      }
-  },
-  scene: {
-      preload,
-      create,
-      update
-  }
+  width: 640,  // 40 cells * 16 pixels
+  height: 480, // 30 cells * 16 pixels
+  scene: SnakeGame,
+  backgroundColor: '#000',
 };
 
-let snake;
-let food;
-let direction = 'RIGHT';
-let nextDirection = 'RIGHT';
-let moveTimer = 0;
-let moveDelay = 150;
-
-let snakeBody = [];
-
 const game = new Phaser.Game(config);
-
-function preload() {
-  this.load.image('body', 'https://upload.wikimedia.org/wikipedia/commons/0/0c/Green_circle.svg');
-  this.load.image('food', 'https://upload.wikimedia.org/wikipedia/commons/e/ec/RedDot.svg');
-}
-
-function create() {
-  snakeBody = [];
-  let startX = 5;
-  let startY = 5;
-
-  for (let i = 0; i < 3; i++) {
-      let segment = this.add.image(startX - i * 1 * 20, startY * 20, 'body').setOrigin(0);
-      snakeBody.push(segment);
-  }
-
-  food = this.add.image(200, 200, 'food').setOrigin(0);
-  placeFood.call(this);
-
-  this.input.keyboard.on('keydown', function (event) {
-      switch (event.key) {
-          case 'ArrowUp':
-              if (direction !== 'DOWN') nextDirection = 'UP';
-              break;
-          case 'ArrowDown':
-              if (direction !== 'UP') nextDirection = 'DOWN';
-              break;
-          case 'ArrowLeft':
-              if (direction !== 'RIGHT') nextDirection = 'LEFT';
-              break;
-          case 'ArrowRight':
-              if (direction !== 'LEFT') nextDirection = 'RIGHT';
-              break;
-      }
-  });
-}
-
-function update(time) {
-  if (time >= moveTimer) {
-      moveSnake.call(this);
-      moveTimer = time + moveDelay;
-  }
-}
-
-function moveSnake() {
-  direction = nextDirection;
-
-  const head = snakeBody[0];
-  let newX = head.x;
-  let newY = head.y;
-
-  if (direction === 'LEFT') newX -= 20;
-  else if (direction === 'RIGHT') newX += 20;
-  else if (direction === 'UP') newY -= 20;
-  else if (direction === 'DOWN') newY += 20;
-
-  // Check collision with food
-  if (Phaser.Math.Distance.Between(newX, newY, food.x, food.y) < 20) {
-      const newSegment = this.add.image(newX, newY, 'body').setOrigin(0);
-      snakeBody.unshift(newSegment);
-      placeFood.call(this);
-  } else {
-      const tail = snakeBody.pop();
-      tail.x = newX;
-      tail.y = newY;
-      snakeBody.unshift(tail);
-  }
-}
-
-function placeFood() {
-  const gridSize = 20;
-  const maxCols = config.width / gridSize;
-  const maxRows = config.height / gridSize;
-
-  let x = Phaser.Math.Between(0, maxCols - 1) * gridSize;
-  let y = Phaser.Math.Between(0, maxRows - 1) * gridSize;
-
-  food.x = x;
-  food.y = y;
-}
