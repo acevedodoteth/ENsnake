@@ -1,128 +1,148 @@
-class SnakeGame extends Phaser.Scene {
-  constructor() {
-    super({ key: 'SnakeGame' });
-    this.gridSize = 16;  // Size of each cell
-  }
-
-  preload() {}
-
-  create() {
-    this.snake = [{ x: 8, y: 8 }]; // initial snake position (grid coords)
-    this.direction = 'RIGHT';
-    this.nextDirection = 'RIGHT'; // buffer next direction for smooth control
-    this.speed = 150; // movement speed in ms
-    this.timer = 0;
-    this.score = 0;
-
-    this.food = this.placeFood();
-
-    // Display score text
-    this.scoreText = this.add.text(10, 10, 'Score: 0', { fontSize: '20px', fill: '#fff' });
-
-    // Keyboard controls
-    this.cursors = this.input.keyboard.createCursorKeys();
-
-    this.gameOver = false;
-  }
-
-  placeFood() {
-    let foodX, foodY;
-    do {
-      foodX = Phaser.Math.Between(0, 39);
-      foodY = Phaser.Math.Between(0, 29);
-    } while (this.snake.some(segment => segment.x === foodX && segment.y === foodY));
-
-    return { x: foodX, y: foodY };
-  }
-
-  update(time) {
-    if (this.gameOver) return;
-
-    // Check input and update direction
-    if (this.cursors.left.isDown && this.direction !== 'RIGHT') this.nextDirection = 'LEFT';
-    else if (this.cursors.right.isDown && this.direction !== 'LEFT') this.nextDirection = 'RIGHT';
-    else if (this.cursors.up.isDown && this.direction !== 'DOWN') this.nextDirection = 'UP';
-    else if (this.cursors.down.isDown && this.direction !== 'UP') this.nextDirection = 'DOWN';
-
-    if (time > this.timer) {
-      this.timer = time + this.speed;
-      this.moveSnake();
-    }
-
-    this.draw();
-  }
-
-  moveSnake() {
-    this.direction = this.nextDirection;
-
-    const head = { ...this.snake[0] };
-
-    switch (this.direction) {
-      case 'LEFT': head.x -= 1; break;
-      case 'RIGHT': head.x += 1; break;
-      case 'UP': head.y -= 1; break;
-      case 'DOWN': head.y += 1; break;
-    }
-
-    // Check collision with walls
-    if (head.x < 0 || head.x >= 40 || head.y < 0 || head.y >= 30) {
-      this.endGame();
-      return;
-    }
-
-    // Check collision with self
-    if (this.snake.some(segment => segment.x === head.x && segment.y === head.y)) {
-      this.endGame();
-      return;
-    }
-
-    // Add new head to snake
-    this.snake.unshift(head);
-
-    // Check if food eaten
-    if (head.x === this.food.x && head.y === this.food.y) {
-      this.score += 10;
-      this.scoreText.setText('Score: ' + this.score);
-      this.food = this.placeFood();
-      // Snake grows: do not remove tail
-    } else {
-      // Remove tail segment if no food eaten (snake moves forward)
-      this.snake.pop();
-    }
-  }
-
-  draw() {
-    this.clearGraphics();
-
-    this.graphics = this.graphics || this.add.graphics();
-
-    // Draw food
-    this.graphics.fillStyle(0xff0000, 1);
-    this.graphics.fillRect(this.food.x * this.gridSize, this.food.y * this.gridSize, this.gridSize, this.gridSize);
-
-    // Draw snake
-    this.graphics.fillStyle(0x00ff00, 1);
-    this.snake.forEach(segment => {
-      this.graphics.fillRect(segment.x * this.gridSize, segment.y * this.gridSize, this.gridSize, this.gridSize);
-    });
-  }
-
-  clearGraphics() {
-    if (this.graphics) this.graphics.clear();
-  }
-
-  endGame() {
-    this.gameOver = true;
-    this.add.text(200, 200, 'Game Over', { fontSize: '40px', fill: '#fff' });
-  }
-}
-
 const config = {
   type: Phaser.AUTO,
-  width: 640,  // 40 cells * 16 pixels
-  height: 480, // 30 cells * 16 pixels
-  scene: SnakeGame,
-  backgroundColor: '#000',
+  width: 800,
+  height: 600,
+  backgroundColor: '#000000',
+  physics: {
+    default: 'arcade',
+    arcade: { debug: false }
+  },
+  scene: {
+    preload,
+    create,
+    update
+  }
 };
 
 const game = new Phaser.Game(config);
+
+let snake;
+let food;
+let cursors;
+let score = 0;
+let scoreText;
+let direction = 'RIGHT';
+let lastDirection = 'RIGHT';
+let moveTimer = 0;
+
+function preload() {
+  // No assets to load
+}
+
+function create() {
+  snake = this.add.group();
+
+  // Create 3 initial segments
+  for (let i = 0; i < 3; i++) {
+    let segment = this.add.rectangle(160 - i * 16, 300, 16, 16, 0x00ff00);
+    this.physics.add.existing(segment);
+    segment.setOrigin(0);
+    snake.add(segment);
+  }
+
+  // Create food
+  food = this.add.rectangle(0, 0, 16, 16, 0xff0000);
+  this.physics.add.existing(food);
+  food.setOrigin(0);
+  placeFood();
+
+  cursors = this.input.keyboard.createCursorKeys();
+
+  scoreText = this.add.text(16, 16, 'Score: 0', {
+    fontSize: '20px',
+    fill: '#ffffff'
+  });
+}
+
+function update(time) {
+  if (time < moveTimer) return;
+  moveTimer = time + 100;
+
+  const segments = snake.getChildren();
+  const head = segments[0];
+  let newX = head.x;
+  let newY = head.y;
+
+  // Input control
+  if (cursors.left.isDown && lastDirection !== 'RIGHT') direction = 'LEFT';
+  else if (cursors.right.isDown && lastDirection !== 'LEFT') direction = 'RIGHT';
+  else if (cursors.up.isDown && lastDirection !== 'DOWN') direction = 'UP';
+  else if (cursors.down.isDown && lastDirection !== 'UP') direction = 'DOWN';
+
+  if (direction === 'LEFT') newX -= 16;
+  else if (direction === 'RIGHT') newX += 16;
+  else if (direction === 'UP') newY -= 16;
+  else if (direction === 'DOWN') newY += 16;
+
+  // Wall collision
+  if (newX < 0 || newX >= 800 || newY < 0 || newY >= 600) {
+    this.scene.restart();
+    score = 0;
+    direction = 'RIGHT';
+    lastDirection = 'RIGHT';
+    return;
+  }
+
+  // Self collision
+  for (let i = 1; i < segments.length; i++) {
+    if (segments[i].x === newX && segments[i].y === newY) {
+      this.scene.restart();
+      score = 0;
+      direction = 'RIGHT';
+      lastDirection = 'RIGHT';
+      return;
+    }
+  }
+
+  // Move snake: shift body segments forward
+  for (let i = segments.length - 1; i > 0; i--) {
+    segments[i].x = segments[i - 1].x;
+    segments[i].y = segments[i - 1].y;
+  }
+
+  // Move head
+  head.x = newX;
+  head.y = newY;
+  lastDirection = direction;
+
+  // Food collision
+  if (Phaser.Geom.Intersects.RectangleToRectangle(head.getBounds(), food.getBounds())) {
+    growSnake.call(this);
+    updateScore.call(this);
+    placeFood.call(this);
+  }
+}
+
+function placeFood() {
+  let foodX = Phaser.Math.Between(0, 49) * 16;
+  let foodY = Phaser.Math.Between(0, 37) * 16;
+
+  food.x = foodX;
+  food.y = foodY;
+
+  if (score >= 100) {
+    food.fillColor = 0x800080;
+    food.points = 3;
+  } else if (score >= 30) {
+    food.fillColor = 0xffa500;
+    food.points = 2;
+  } else {
+    food.fillColor = 0xff0000;
+    food.points = 1;
+  }
+}
+
+function updateScore() {
+  score += food.points || 1;
+  scoreText.setText('Score: ' + score);
+}
+
+function growSnake() {
+  const segments = snake.getChildren();
+  const tail = segments[segments.length - 1];
+
+  let newSegment = this.add.rectangle(tail.x, tail.y, 16, 16, 0x00ff00);
+  this.physics.add.existing(newSegment);
+  newSegment.setOrigin(0);
+  snake.add(newSegment);
+}
