@@ -1,167 +1,108 @@
 const config = {
   type: Phaser.AUTO,
-  width: 600,
+  width: 400,
   height: 400,
-  backgroundColor: '#222',
+  backgroundColor: '#1d1d1d',
   physics: {
-    default: 'arcade',
+      default: 'arcade',
+      arcade: {
+          debug: false
+      }
   },
   scene: {
-    preload: preload,
-    create: create,
-    update: update
+      preload,
+      create,
+      update
   }
 };
 
-const game = new Phaser.Game(config);
-
 let snake;
 let food;
-let cursors;
-let gridSize = 20;
-let moveDelay = 0;
-let moveInterval = 150; // ms between moves
 let direction = 'RIGHT';
+let nextDirection = 'RIGHT';
+let moveTimer = 0;
+let moveDelay = 150;
+
+let snakeBody = [];
+
+const game = new Phaser.Game(config);
 
 function preload() {
-  // We'll draw shapes manually, so no assets needed.
+  this.load.image('body', 'https://upload.wikimedia.org/wikipedia/commons/0/0c/Green_circle.svg');
+  this.load.image('food', 'https://upload.wikimedia.org/wikipedia/commons/e/ec/RedDot.svg');
 }
 
 function create() {
-  // Create snake as an array of parts (each part is a Phaser rectangle)
-  snake = [];
+  snakeBody = [];
+  let startX = 5;
+  let startY = 5;
 
-  // Starting position of the snake's head
-  let startX = gridSize * 5;
-  let startY = gridSize * 5;
-
-  // Create 3 parts of snake initially
   for (let i = 0; i < 3; i++) {
-    let part = this.add.rectangle(startX - i * gridSize, startY, gridSize - 2, gridSize - 2, 0x00ff00).setOrigin(0);
-    snake.push(part);
+      let segment = this.add.image(startX - i * 1 * 20, startY * 20, 'body').setOrigin(0);
+      snakeBody.push(segment);
   }
 
-  // Create food as a rectangle
-  food = this.add.rectangle(0, 0, gridSize - 2, gridSize - 2, 0xff0000).setOrigin(0);
-  placeFood(this);
+  food = this.add.image(200, 200, 'food').setOrigin(0);
+  placeFood.call(this);
 
-  cursors = this.input.keyboard.createCursorKeys();
-
-  this.score = 0;
-  this.scoreText = this.add.text(10, 10, 'Score: 0', { fontSize: '20px', fill: '#0f0' });
+  this.input.keyboard.on('keydown', function (event) {
+      switch (event.key) {
+          case 'ArrowUp':
+              if (direction !== 'DOWN') nextDirection = 'UP';
+              break;
+          case 'ArrowDown':
+              if (direction !== 'UP') nextDirection = 'DOWN';
+              break;
+          case 'ArrowLeft':
+              if (direction !== 'RIGHT') nextDirection = 'LEFT';
+              break;
+          case 'ArrowRight':
+              if (direction !== 'LEFT') nextDirection = 'RIGHT';
+              break;
+      }
+  });
 }
 
 function update(time) {
-  if (time < moveDelay) {
-    return;
+  if (time >= moveTimer) {
+      moveSnake.call(this);
+      moveTimer = time + moveDelay;
   }
-
-  moveDelay = time + moveInterval;
-
-  // Update direction based on input but disallow direct opposite moves
-  if (cursors.left.isDown && direction !== 'RIGHT') {
-    direction = 'LEFT';
-  } else if (cursors.right.isDown && direction !== 'LEFT') {
-    direction = 'RIGHT';
-  } else if (cursors.up.isDown && direction !== 'DOWN') {
-    direction = 'UP';
-  } else if (cursors.down.isDown && direction !== 'UP') {
-    direction = 'DOWN';
-  }
-
-  moveSnake(this);
 }
 
-function moveSnake(scene) {
-  // Calculate new head position
-  let head = snake[0];
+function moveSnake() {
+  direction = nextDirection;
+
+  const head = snakeBody[0];
   let newX = head.x;
   let newY = head.y;
 
-  if (direction === 'LEFT') {
-    newX -= gridSize;
-  } else if (direction === 'RIGHT') {
-    newX += gridSize;
-  } else if (direction === 'UP') {
-    newY -= gridSize;
-  } else if (direction === 'DOWN') {
-    newY += gridSize;
-  }
+  if (direction === 'LEFT') newX -= 20;
+  else if (direction === 'RIGHT') newX += 20;
+  else if (direction === 'UP') newY -= 20;
+  else if (direction === 'DOWN') newY += 20;
 
-  // Check for wall collisions (wrap around)
-  if (newX < 0) newX = config.width - gridSize;
-  else if (newX >= config.width) newX = 0;
-  if (newY < 0) newY = config.height - gridSize;
-  else if (newY >= config.height) newY = 0;
-
-  // Check for self collision - if new head position matches any part of snake
-  for (let part of snake) {
-    if (part.x === newX && part.y === newY) {
-      // Game over - reset the game
-      resetGame(scene);
-      return;
-    }
-  }
-
-  // Move body parts - start from tail, each part takes position of the one before it
-  for (let i = snake.length - 1; i > 0; i--) {
-    snake[i].x = snake[i - 1].x;
-    snake[i].y = snake[i - 1].y;
-  }
-
-  // Move head to new position
-  head.x = newX;
-  head.y = newY;
-
-  // Check if snake eats the food
-  if (head.x === food.x && head.y === food.y) {
-    // Add new part at the tail (position will be updated on next move)
-    let tail = snake[snake.length - 1];
-    let newPart = scene.add.rectangle(tail.x, tail.y, gridSize - 2, gridSize - 2, 0x00ff00).setOrigin(0);
-    snake.push(newPart);
-
-    placeFood(scene);
-
-    this.score++;
-    this.scoreText.setText('Score: ' + this.score);
+  // Check collision with food
+  if (Phaser.Math.Distance.Between(newX, newY, food.x, food.y) < 20) {
+      const newSegment = this.add.image(newX, newY, 'body').setOrigin(0);
+      snakeBody.unshift(newSegment);
+      placeFood.call(this);
+  } else {
+      const tail = snakeBody.pop();
+      tail.x = newX;
+      tail.y = newY;
+      snakeBody.unshift(tail);
   }
 }
 
-function placeFood(scene) {
-  let x = Phaser.Math.Between(0, (config.width / gridSize) - 1) * gridSize;
-  let y = Phaser.Math.Between(0, (config.height / gridSize) - 1) * gridSize;
+function placeFood() {
+  const gridSize = 20;
+  const maxCols = config.width / gridSize;
+  const maxRows = config.height / gridSize;
 
-  // Make sure food is not placed on the snake
-  for (let part of snake) {
-    if (part.x === x && part.y === y) {
-      // Recurse until a free spot is found
-      placeFood(scene);
-      return;
-    }
-  }
+  let x = Phaser.Math.Between(0, maxCols - 1) * gridSize;
+  let y = Phaser.Math.Between(0, maxRows - 1) * gridSize;
 
   food.x = x;
   food.y = y;
-}
-
-function resetGame(scene) {
-  // Destroy all snake parts
-  for (let part of snake) {
-    part.destroy();
-  }
-  snake = [];
-  direction = 'RIGHT';
-  this.score = 0;
-  this.scoreText.setText('Score: 0');
-
-  // Recreate snake at start
-  let startX = gridSize * 5;
-  let startY = gridSize * 5;
-
-  for (let i = 0; i < 3; i++) {
-    let part = scene.add.rectangle(startX - i * gridSize, startY, gridSize - 2, gridSize - 2, 0x00ff00).setOrigin(0);
-    snake.push(part);
-  }
-
-  placeFood(scene);
 }
