@@ -1,4 +1,4 @@
-// Updated Phaser Snake Game with Color Progression & Gold Coin Bonus
+// Updated Phaser Snake Game with Color Progression, Gold Coin Bonus, Speed Scaling, and Sound Effects
 const config = {
   type: Phaser.AUTO,
   width: 800,
@@ -25,14 +25,21 @@ let scoreText;
 let direction = 'RIGHT';
 let lastDirection = 'RIGHT';
 let moveTimer = 0;
+let moveInterval = 150;
 let goldCoin;
 let goldCoinTimer = null;
+let lastSpeedLevel = 0;
+let lastColorPoints = 1;
 
 function preload() {
-  // No assets to preload, using shapes
+  this.load.audio('swoosh', 'https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg');
+  this.load.audio('levelup', 'https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg');
 }
 
 function create() {
+  this.swooshSound = this.sound.add('swoosh');
+  this.levelUpSound = this.sound.add('levelup');
+
   snake = this.physics.add.group();
   for (let i = 0; i < 3; i++) {
     let segment = this.add.rectangle(160 - i * 16, 300, 16, 16, 0x00ff00);
@@ -54,8 +61,10 @@ function create() {
 }
 
 function update(time) {
+  updateSpeed.call(this);
+
   if (time < moveTimer) return;
-  moveTimer = time + 100;
+  moveTimer = time + moveInterval;
 
   if (cursors.left.isDown && lastDirection !== 'RIGHT') direction = 'LEFT';
   else if (cursors.right.isDown && lastDirection !== 'LEFT') direction = 'RIGHT';
@@ -77,6 +86,8 @@ function update(time) {
     score = 0;
     direction = 'RIGHT';
     lastDirection = 'RIGHT';
+    lastSpeedLevel = 0;
+    lastColorPoints = 1;
     return;
   }
 
@@ -86,6 +97,8 @@ function update(time) {
       score = 0;
       direction = 'RIGHT';
       lastDirection = 'RIGHT';
+      lastSpeedLevel = 0;
+      lastColorPoints = 1;
       return;
     }
   }
@@ -112,6 +125,16 @@ function update(time) {
   }
 }
 
+function updateSpeed() {
+  const level = Math.floor(score / 10);
+  const newInterval = Math.max(55, 150 - level * 10);
+  if (level > lastSpeedLevel) {
+    this.swooshSound.play();
+    lastSpeedLevel = level;
+  }
+  moveInterval = newInterval;
+}
+
 function placeFood() {
   const colorThresholds = [
     { max: 29, color: 0xff0000, points: 1 },
@@ -128,10 +151,14 @@ function placeFood() {
   food.fillColor = tier.color;
   food.points = tier.points;
 
+  if (tier.points > lastColorPoints) {
+    this.levelUpSound.play();
+    lastColorPoints = tier.points;
+  }
+
   food.x = Phaser.Math.Snap.To(Phaser.Math.Between(1, 48) * 16, 16);
   food.y = Phaser.Math.Snap.To(Phaser.Math.Between(1, 36) * 16, 16);
 
-  // Show gold coin every 30 food pickups
   if (score > 0 && score % 30 === 0 && !goldCoin) {
     spawnGoldCoin.call(this);
   }
