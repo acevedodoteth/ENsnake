@@ -1,4 +1,4 @@
-// Updated Phaser Snake Game with Color Progression, Gold Coin Bonus, Speed Scaling, and Sound Effects
+// Updated Phaser Snake Game with Obstacles, Color Progression, Gold Coin Bonus, Speed Scaling, and Sound Effects
 const config = {
   type: Phaser.AUTO,
   width: 800,
@@ -30,6 +30,9 @@ let goldCoin;
 let goldCoinTimer = null;
 let lastSpeedLevel = 0;
 let lastColorPoints = 1;
+let staticObstacles;
+let movingObstacles;
+let patrolTween;
 
 function preload() {
   this.load.audio('swoosh', 'https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg');
@@ -57,6 +60,9 @@ function create() {
   cursors = this.input.keyboard.createCursorKeys();
   scoreText = this.add.text(16, 16, 'Score: 0', { fontSize: '20px', fill: '#ffffff' });
 
+  staticObstacles = this.physics.add.staticGroup();
+  movingObstacles = this.add.group();
+
   placeFood.call(this);
 }
 
@@ -81,33 +87,16 @@ function update(time) {
   else if (direction === 'UP') newY -= 16;
   else if (direction === 'DOWN') newY += 16;
 
-  if (newX < 0 || newX >= 800 || newY < 0 || newY >= 600) {
-    this.scene.restart();
-    score = 0;
-    direction = 'RIGHT';
-    lastDirection = 'RIGHT';
-    lastSpeedLevel = 0;
-    lastColorPoints = 1;
-    return;
-  }
+  if (newX < 0 || newX >= 800 || newY < 0 || newY >= 600) return restartScene.call(this);
 
   for (let i = 1; i < segments.length; i++) {
-    if (segments[i].x === newX && segments[i].y === newY) {
-      this.scene.restart();
-      score = 0;
-      direction = 'RIGHT';
-      lastDirection = 'RIGHT';
-      lastSpeedLevel = 0;
-      lastColorPoints = 1;
-      return;
-    }
+    if (segments[i].x === newX && segments[i].y === newY) return restartScene.call(this);
   }
 
   const tail = segments.pop();
   tail.x = newX;
   tail.y = newY;
   segments.unshift(tail);
-
   lastDirection = direction;
 
   if (Phaser.Geom.Intersects.RectangleToRectangle(tail.getBounds(), food.getBounds())) {
@@ -123,6 +112,22 @@ function update(time) {
     goldCoin = null;
     if (goldCoinTimer) clearTimeout(goldCoinTimer);
   }
+
+  this.physics.world.collide(snake, staticObstacles, () => restartScene.call(this));
+  movingObstacles.getChildren().forEach(ob => {
+    if (Phaser.Geom.Intersects.RectangleToRectangle(tail.getBounds(), ob.getBounds())) {
+      restartScene.call(this);
+    }
+  });
+}
+
+function restartScene() {
+  this.scene.restart();
+  score = 0;
+  direction = 'RIGHT';
+  lastDirection = 'RIGHT';
+  lastSpeedLevel = 0;
+  lastColorPoints = 1;
 }
 
 function updateSpeed() {
@@ -161,6 +166,11 @@ function placeFood() {
 
   if (score > 0 && score % 30 === 0 && !goldCoin) {
     spawnGoldCoin.call(this);
+    spawnStaticObstacle.call(this);
+  }
+
+  if (score > 0 && score % 60 === 0) {
+    spawnMovingObstacle.call(this);
   }
 }
 
@@ -183,6 +193,37 @@ function spawnGoldCoin() {
     goldCoin = null;
     clearInterval(moveInterval);
   }, 15000);
+}
+
+function spawnStaticObstacle() {
+  const wall = this.add.rectangle(
+    Phaser.Math.Snap.To(Phaser.Math.Between(1, 48) * 16, 16),
+    Phaser.Math.Snap.To(Phaser.Math.Between(1, 36) * 16, 16),
+    16, 16, 0x777777
+  );
+  staticObstacles.add(wall);
+}
+
+function spawnMovingObstacle() {
+  const cop = this.add.rectangle(
+    Phaser.Math.Snap.To(Phaser.Math.Between(1, 48) * 16, 16),
+    Phaser.Math.Snap.To(Phaser.Math.Between(1, 36) * 16, 16),
+    16, 16, 0x0000ff
+  );
+  this.physics.add.existing(cop);
+  movingObstacles.add(cop);
+
+  this.tweens.add({
+    targets: cop,
+    x: cop.x + 64,
+    duration: 1000,
+    yoyo: true,
+    repeat: -1,
+    ease: 'Sine.easeInOut',
+    onUpdate: () => {
+      cop.fillColor = cop.fillColor === 0x0000ff ? 0xff0000 : 0x0000ff;
+    }
+  });
 }
 
 function updateScore() {
