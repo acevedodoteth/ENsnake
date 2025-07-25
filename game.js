@@ -1,4 +1,4 @@
-// Updated Phaser Snake Game with Obstacles, Color Progression, Gold Coin Bonus, Speed Scaling, and Sound Effects
+// Updated Phaser Snake Game with Working Sound Effects and Fixes
 const config = {
   type: Phaser.AUTO,
   width: 800,
@@ -32,7 +32,6 @@ let lastSpeedLevel = 0;
 let lastColorPoints = 1;
 let staticObstacles;
 let movingObstacles;
-let patrolTween;
 
 function preload() {
   this.load.audio('swoosh', 'https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg');
@@ -196,18 +195,19 @@ function spawnGoldCoin() {
 }
 
 function spawnStaticObstacle() {
-  const wall = this.add.rectangle(
-    Phaser.Math.Snap.To(Phaser.Math.Between(1, 48) * 16, 16),
-    Phaser.Math.Snap.To(Phaser.Math.Between(1, 36) * 16, 16),
-    16, 16, 0x777777
-  );
-  staticObstacles.add(wall);
+  const x = Phaser.Math.Snap.To(Phaser.Math.Between(2, 46) * 16, 16);
+  const y = Phaser.Math.Snap.To(Phaser.Math.Between(2, 34) * 16, 16);
+
+  for (let i = 0; i < 3; i++) {
+    const wall = this.add.rectangle(x + i * 16, y, 16, 16, 0x777777);
+    staticObstacles.add(wall);
+  }
 }
 
 function spawnMovingObstacle() {
   const cop = this.add.rectangle(
-    Phaser.Math.Snap.To(Phaser.Math.Between(1, 48) * 16, 16),
-    Phaser.Math.Snap.To(Phaser.Math.Between(1, 36) * 16, 16),
+    Phaser.Math.Snap.To(Phaser.Math.Between(2, 46) * 16, 16),
+    Phaser.Math.Snap.To(Phaser.Math.Between(2, 34) * 16, 16),
     16, 16, 0x0000ff
   );
   this.physics.add.existing(cop);
@@ -215,8 +215,8 @@ function spawnMovingObstacle() {
 
   this.tweens.add({
     targets: cop,
-    x: cop.x + 64,
-    duration: 1000,
+    x: "+=96",
+    duration: 800,
     yoyo: true,
     repeat: -1,
     ease: 'Sine.easeInOut',
